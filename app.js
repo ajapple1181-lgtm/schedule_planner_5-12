@@ -1611,7 +1611,7 @@ function openTimetableCellEdit(dateS, startIdx, endIdx) {
   body.appendChild(wrapField("系", groupSel));
   body.appendChild(subjectArea);
 
-  const noClassBtn = mkBtn("授業なし（斜線）", "btnSmall", () => {
+  const noClassBtn = mkBtn("授業なし", "btnSmall", () => {
     for (let i = startIdx; i <= endIdx; i++) {
       life.timetable[i] = {
         groupKey: "none",
@@ -1626,7 +1626,7 @@ function openTimetableCellEdit(dateS, startIdx, endIdx) {
     render();
   });
 
-  const clearBtn = mkBtn("空欄にする", "btnDanger", () => {
+  const clearBtn = mkBtn("空欄", "btnDanger", () => {
     for (let i = startIdx; i <= endIdx; i++) {
       life.timetable[i] = {
         groupKey:"none",
