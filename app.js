@@ -794,40 +794,52 @@ function buildLifeBlocksForDate(dateS, lifeRaw) {
     info.middayAnchorMs = en;
   }
 
-  if (!Number.isFinite(info.baseEndMs) && life.returnMoveBase) {
-    const manual = msOfDateTime(dateS, life.returnMoveBase);
-    if (Number.isFinite(manual)) info.baseEndMs = manual;
-  }
+// 帰り移動の開始時刻
+  // 空欄なら授業終了時刻から自動。
+  // 入力されている場合は、
+  // 60分/30分 → その移動の開始時刻
+  // 30分×2 → 最初の30分の移動開始時刻
+  const returnStartMs = (() => {
+    if (life.returnMoveBase) {
+      const manual = msOfDateTime(dateS, life.returnMoveBase);
+      if (Number.isFinite(manual)) return manual;
+    }
+    return info.baseEndMs;
+  })();
 
-  const breakfastSt = autoMealStartMs("breakfast", dateS, life, info);
-  if (life.breakfastUse === "あり" && Number.isFinite(breakfastSt)) {
-    push("life", "朝食", breakfastSt, breakfastSt + life.breakfastMin * 60 * 1000, { source:"routine", meal:"breakfast" });
-  }
-
-  const lunchSt = autoMealStartMs("lunch", dateS, life, info);
-  if (life.lunchUse === "あり" && Number.isFinite(lunchSt)) {
-    push("life", "昼食", lunchSt, lunchSt + life.lunchMin * 60 * 1000, { source:"routine", meal:"lunch" });
-  }
-
-  if (Number.isFinite(info.baseEndMs)) {
+  if (Number.isFinite(returnStartMs)) {
     if (life.returnMoveType === "60") {
-      const moveEnd = info.baseEndMs + 60 * 60 * 1000;
-      push("life", "移動", info.baseEndMs, moveEnd, { source:"routine", returnType:"60" });
+      const moveEnd = returnStartMs + 60 * 60 * 1000;
+      push("life", "移動", returnStartMs, moveEnd, {
+        source:"routine",
+        returnType:"60"
+      });
       info.lastReturnEndMs = moveEnd;
+
     } else if (life.returnMoveType === "30") {
-      const moveEnd = info.baseEndMs + 30 * 60 * 1000;
-      push("life", "移動", info.baseEndMs, moveEnd, { source:"routine", returnType:"30" });
+      const moveEnd = returnStartMs + 30 * 60 * 1000;
+      push("life", "移動", returnStartMs, moveEnd, {
+        source:"routine",
+        returnType:"30"
+      });
       info.lastReturnEndMs = moveEnd;
+
     } else if (life.returnMoveType === "30x2") {
-      const move1End = info.baseEndMs + 30 * 60 * 1000;
-      push("life", "移動", info.baseEndMs, move1End, { source:"routine", returnType:"30x2-1" });
+      const move1End = returnStartMs + 30 * 60 * 1000;
+      push("life", "移動", returnStartMs, move1End, {
+        source:"routine",
+        returnType:"30x2-1"
+      });
       info.lastReturnEndMs = move1End;
 
       if (life.second30Start) {
         const st2 = msOfDateTime(dateS, life.second30Start);
         if (Number.isFinite(st2) && st2 >= move1End) {
           const move2End = st2 + 30 * 60 * 1000;
-          push("life", "移動", st2, move2End, { source:"routine", returnType:"30x2-2" });
+          push("life", "移動", st2, move2End, {
+            source:"routine",
+            returnType:"30x2-2"
+          });
           info.lastReturnEndMs = move2End;
         }
       }
