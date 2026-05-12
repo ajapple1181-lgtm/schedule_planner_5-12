@@ -160,8 +160,10 @@ function emptyTimetable() {
   return PERIOD_LABELS.map(() => ({
     groupKey: "none",
     subject: "",
+    noClass: false,
   }));
 }
+
 function normalizeTimetable(timetable) {
   const base = emptyTimetable();
   if (!Array.isArray(timetable)) return base;
@@ -170,10 +172,12 @@ function normalizeTimetable(timetable) {
     base[i] = {
       groupKey: timetable[i]?.groupKey || "none",
       subject: timetable[i]?.subject || "",
+      noClass: !!timetable[i]?.noClass,
     };
   }
+
   return base;
-}
+     }
 
 /* ===== life config ===== */
 const LIFE_TYPE_OPTIONS = [
@@ -928,20 +932,22 @@ function collectBlocksIntersectWindow(blocks, windowStart, windowEnd) {
 function earliestStudyStartMs(dateS, occBlocks, lifeRaw) {
   const dayStart = parseDateStr(dateS).getTime();
   const life = normalizeLifeSettings(lifeRaw);
+
+  // 朝も勉強できるようにする。
+  // ただし初期値は6:00以降。睡眠・朝食・移動などの生活ブロックとは重ならない。
   let earliest = dayStart + NO_STUDY_BEFORE_MIN * 60 * 1000;
 
+  // 勉強開始（任意）が入っている場合は、それを優先する。
   if (life.studyStart) {
     const s = msOfDateTime(dateS, life.studyStart);
-    if (Number.isFinite(s)) earliest = Math.max(earliest, s);
+    if (Number.isFinite(s)) earliest = Math.max(dayStart, s);
   }
 
-  const lessonEnds = (occBlocks || [])
-    .filter(b => b.name === "授業")
-    .map(b => b.endMs);
-  if (lessonEnds.length) earliest = Math.max(earliest, Math.max(...lessonEnds));
+  // ここで授業終了後に固定しない。
+  // そのため、授業前の空き時間にも勉強が入る。
 
   return earliest;
-}
+     }
 
 /* ===== study scheduling ===== */
 function buildStudySegmentsForDate(dateS, allLifeBlocks, studyTasks, lifeRaw) {
@@ -1378,6 +1384,7 @@ function compactTimetable(timetable) {
 
     while (
       j < arr.length &&
+      !!arr[j].noClass === !!cur.noClass &&
       (arr[j].groupKey || "none") === (cur.groupKey || "none") &&
       (arr[j].subject || "") === (cur.subject || "")
     ) {
@@ -1389,6 +1396,7 @@ function compactTimetable(timetable) {
       end: j - 1,
       groupKey: cur.groupKey || "none",
       subject: cur.subject || "",
+      noClass: !!cur.noClass,
     });
 
     i = j;
@@ -1443,10 +1451,22 @@ function openTimetable(dateS) {
   `;
 
   compactTimetable(life.timetable).forEach(seg => {
-    const color = subjectColorFromGroup(seg.groupKey);
-    const subject = seg.subject || "—";
+    const color = seg.noClass ? "gray" : subjectColorFromGroup(seg.groupKey);
+    const subject = seg.noClass ? "授業なし" : (seg.subject || "—");
     const h = (seg.end - seg.start + 1) * 44;
     const top = seg.start * 44;
+
+    const bg = seg.noClass
+      ? `
+        repeating-linear-gradient(
+          135deg,
+          rgba(255,255,255,.10) 0,
+          rgba(255,255,255,.10) 6px,
+          rgba(15,21,38,.92) 6px,
+          rgba(15,21,38,.92) 14px
+        )
+      `
+      : `rgba(15,21,38,.92)`;
 
     const cell = el("button", "", "");
     cell.type = "button";
@@ -1458,7 +1478,7 @@ function openTimetable(dateS) {
       height:${h}px;
       border:0;
       border-bottom:1px solid rgba(255,255,255,.08);
-      background:rgba(15,21,38,.92);
+      background:${bg};
       color:#eef3ff;
       text-align:left;
       padding:8px 10px;
@@ -1475,6 +1495,7 @@ function openTimetable(dateS) {
       min-height:24px;
       border-radius:999px;
       flex-shrink:0;
+      opacity:${seg.noClass ? ".45" : "1"};
     `;
 
     const text = el("span", "", subject);
@@ -1482,6 +1503,7 @@ function openTimetable(dateS) {
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
+      opacity:${seg.noClass ? ".75" : "1"};
     `;
 
     const range = seg.start === seg.end
@@ -1518,7 +1540,11 @@ function openTimetableCellEdit(dateS, startIdx, endIdx) {
   const life = state.lifeByDate[dateS] =
     normalizeLifeSettings(state.lifeByDate[dateS] || emptyLifeSettings());
 
-  const current = life.timetable[startIdx] || { groupKey:"none", subject:"" };
+  const current = life.timetable[startIdx] || {
+    groupKey:"none",
+    subject:"",
+    noClass:false,
+  };
 
   const body = el("div", "grid1");
   const label = startIdx === endIdx
@@ -1585,9 +1611,28 @@ function openTimetableCellEdit(dateS, startIdx, endIdx) {
   body.appendChild(wrapField("系", groupSel));
   body.appendChild(subjectArea);
 
+  const noClassBtn = mkBtn("授業なし（斜線）", "btnSmall", () => {
+    for (let i = startIdx; i <= endIdx; i++) {
+      life.timetable[i] = {
+        groupKey: "none",
+        subject: "",
+        noClass: true,
+      };
+    }
+
+    saveState();
+    closeModal();
+    openTimetable(dateS);
+    render();
+  });
+
   const clearBtn = mkBtn("空欄にする", "btnDanger", () => {
     for (let i = startIdx; i <= endIdx; i++) {
-      life.timetable[i] = { groupKey:"none", subject:"" };
+      life.timetable[i] = {
+        groupKey:"none",
+        subject:"",
+        noClass:false,
+      };
     }
     saveState();
     closeModal();
@@ -1604,6 +1649,7 @@ function openTimetableCellEdit(dateS, startIdx, endIdx) {
       life.timetable[i] = {
         groupKey: groupSel.value,
         subject,
+        noClass: false,
       };
     }
 
@@ -1618,10 +1664,11 @@ function openTimetableCellEdit(dateS, startIdx, endIdx) {
       closeModal();
       openTimetable(dateS);
     }),
+    noClassBtn,
     clearBtn,
     saveBtn,
   ]);
-}
+         }
 
 /* ===== life edit modal ===== */
 function openCustomLifeEdit(dateS, cbId) {
