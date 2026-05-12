@@ -720,10 +720,20 @@ function autoMealStartMs(kind, dateS, life, info) {
   const durMs = mins * 60 * 1000;
 
   if (kind === "breakfast") {
+    // 1. 開始時刻が入力されていればそれを優先
     if (life.breakfastStart) return msOfDateTime(dateS, life.breakfastStart);
+
+    // 2. 朝の移動があれば、その直前
     if (life.morningMoveStart) return msOfDateTime(dateS, life.morningMoveStart) - durMs;
+
+    // 3. 授業開始があれば、その直前
     if (life.lessonStart) return msOfDateTime(dateS, life.lessonStart) - durMs;
-    return NaN;
+
+    // 4. それでも決まらない場合は、起床時刻の直後
+    if (life.wakeTime) return msOfDateTime(dateS, life.wakeTime);
+
+    // 5. 最後の保険として7:00
+    return msOfDateTime(dateS, "07:00");
   }
 
   if (kind === "lunch") {
@@ -738,7 +748,7 @@ function autoMealStartMs(kind, dateS, life, info) {
   if (Number.isFinite(info.lastReturnEndMs)) return info.lastReturnEndMs;
   if (Number.isFinite(info.baseEndMs)) return info.baseEndMs;
   return NaN;
-}
+     }
 
 function buildLifeBlocksForDate(dateS, lifeRaw) {
   const life = normalizeLifeSettings(lifeRaw);
