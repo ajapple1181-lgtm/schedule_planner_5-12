@@ -748,7 +748,7 @@ function autoMealStartMs(kind, dateS, life, info) {
   if (Number.isFinite(info.lastReturnEndMs)) return info.lastReturnEndMs;
   if (Number.isFinite(info.baseEndMs)) return info.baseEndMs;
   return NaN;
-     }
+}
 
 function buildLifeBlocksForDate(dateS, lifeRaw) {
   const life = normalizeLifeSettings(lifeRaw);
@@ -804,7 +804,42 @@ function buildLifeBlocksForDate(dateS, lifeRaw) {
     info.middayAnchorMs = en;
   }
 
-// 帰り移動の開始時刻
+  // 朝食
+  if (life.breakfastUse === "あり") {
+    let breakfastSt = autoMealStartMs("breakfast", dateS, life, info);
+
+    if (!Number.isFinite(breakfastSt)) {
+      if (life.breakfastStart) {
+        breakfastSt = msOfDateTime(dateS, life.breakfastStart);
+      } else if (life.morningMoveStart) {
+        breakfastSt = msOfDateTime(dateS, life.morningMoveStart) - life.breakfastMin * 60 * 1000;
+      } else if (life.lessonStart) {
+        breakfastSt = msOfDateTime(dateS, life.lessonStart) - life.breakfastMin * 60 * 1000;
+      } else if (life.wakeTime) {
+        breakfastSt = msOfDateTime(dateS, life.wakeTime);
+      } else {
+        breakfastSt = msOfDateTime(dateS, "07:00");
+      }
+    }
+
+    if (Number.isFinite(breakfastSt)) {
+      push("life", "朝食", breakfastSt, breakfastSt + life.breakfastMin * 60 * 1000, {
+        source:"routine",
+        meal:"breakfast"
+      });
+    }
+  }
+
+  // 昼食
+  const lunchSt = autoMealStartMs("lunch", dateS, life, info);
+  if (life.lunchUse === "あり" && Number.isFinite(lunchSt)) {
+    push("life", "昼食", lunchSt, lunchSt + life.lunchMin * 60 * 1000, {
+      source:"routine",
+      meal:"lunch"
+    });
+  }
+
+  // 帰り移動の開始時刻
   // 空欄なら授業終了時刻から自動。
   // 入力されている場合は、
   // 60分/30分 → その移動の開始時刻
@@ -931,7 +966,7 @@ function buildEndOfDayBlocks(dateS, lifeRaw, existingBlocks) {
   }
 
   return { blocks, err: null };
-}
+           }
 
 /* ===== overlap / collection ===== */
 function findOverlap(blocks) {
